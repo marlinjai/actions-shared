@@ -9,10 +9,6 @@ on:
       environment:
         required: true
         type: string
-      max_wait_seconds:
-        required: false
-        type: number
-        default: 80
     secrets:
       coolify_webhook:
         required: true
@@ -26,11 +22,4 @@ jobs:
       contents: read
       deployments: write
     steps:
-      - name: Create GitHub Deployment
-        id: deployment
-        uses: chrnorm/deployment-action@v2.0.8
-        with:
-          token: ${{ github.token }}
-          environment: ${{ inputs.environment }}
-          environment-url: ${{ inputs.health_url }}
-          initial-status: in_progress
+      - run: echo "perm test"
