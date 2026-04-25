@@ -1,22 +1,107 @@
 name: Coolify Deploy + Verify
 
+# Reusable workflow: triggers a Coolify deploy webhook, posts GitHub Deployment
+# status transitions around it, and verifies the new container is actually
+# serving by retry-curling a public health URL. Callers pin to an immutable
+# version tag (e.g. @v1), never @main.
+
 on:
   workflow_call:
     inputs:
       health_url:
+        description: "Public URL to curl after deploy. Must return 2xx when healthy."
         required: true
         type: string
       environment:
+        description: "GitHub Deployments environment name."
         required: true
         type: string
+      max_wait_seconds:
+        description: "How long to retry the health check before giving up. Default 80s."
+        required: false
+        type: number
+        default: 80
     secrets:
       coolify_webhook:
+        description: "Coolify deploy webhook URL."
         required: true
       coolify_token:
+        description: "Coolify API bearer token."
         required: true
 
 jobs:
   deploy-verify:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
     steps:
-      - run: echo "deploy-verify called with health_url=${{ inputs.health_url }} env=${{ inputs.environment }}"
+      - name: Create GitHub Deployment (in_progress)
+        id: deployment
+        uses: chrnorm/deployment-action@v2.0.8
+        with:
+          token: ${{ github.token }}
+          environment: ${{ inputs.environment }}
+          environment-url: ${{ inputs.health_url }}
+          initial-status: in_progress
+          description: "Triggering Coolify deploy"
+
+      - name: Trigger Coolify deploy webhook
+        run: |
+          set -euo pipefail
+          HTTP_CODE=$(curl -sS -o /tmp/coolify-response -w "%{http_code}" \
+            "${{ secrets.coolify_webhook }}" \
+            -H "Authorization: Bearer ${{ secrets.coolify_token }}")
+          echo "Coolify webhook HTTP $HTTP_CODE"
+          cat /tmp/coolify-response || true
+          echo
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "::error::Coolify deploy webhook failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+
+      - name: Verify health endpoint
+        env:
+          HEALTH_URL: ${{ inputs.health_url }}
+          MAX_WAIT: ${{ inputs.max_wait_seconds }}
+        run: |
+          set -euo pipefail
+          start_time=$(date +%s)
+          attempt=0
+          while true; do
+            attempt=$((attempt + 1))
+            if curl --fail --silent --show-error --max-time 15 -o /dev/null "$HEALTH_URL"; then
+              elapsed=$(( $(date +%s) - start_time ))
+              echo "::notice::Verify succeeded on attempt $attempt after ${elapsed}s"
+              exit 0
+            fi
+            elapsed=$(( $(date +%s) - start_time ))
+            if [ "$elapsed" -ge "$MAX_WAIT" ]; then
+              echo "::error::Verify timed out after ${elapsed}s (attempt $attempt)"
+              exit 1
+            fi
+            echo "Verify attempt $attempt failed at ${elapsed}s, retrying in 10s..."
+            sleep 10
+          done
+
+      - name: Mark Deployment success
+        if: success()
+        uses: chrnorm/deployment-status@v2.0.4
+        with:
+          token: ${{ github.token }}
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+          environment: ${{ inputs.environment }}
+          environment-url: ${{ inputs.health_url }}
+          state: success
+          description: "Deploy verified healthy"
+
+      - name: Mark Deployment failure
+        if: failure()
+        uses: chrnorm/deployment-status@v2.0.4
+        with:
+          token: ${{ github.token }}
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+          environment: ${{ inputs.environment }}
+          environment-url: ${{ inputs.health_url }}
+          state: failure
+          description: "Deploy failed or health check did not pass"
