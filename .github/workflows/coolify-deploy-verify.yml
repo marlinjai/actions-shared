@@ -22,5 +22,15 @@ on:
 jobs:
   deploy-verify:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
     steps:
-      - run: echo "h=${{ inputs.health_url }} e=${{ inputs.environment }} m=${{ inputs.max_wait_seconds }}"
+      - name: Create GitHub Deployment
+        id: deployment
+        uses: chrnorm/deployment-action@v2.0.8
+        with:
+          token: ${{ github.token }}
+          environment: ${{ inputs.environment }}
+          environment-url: ${{ inputs.health_url }}
+          initial-status: in_progress
