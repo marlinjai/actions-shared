@@ -76,7 +76,19 @@ jobs:
           COOLIFY_TOKEN: ${{ secrets.coolify_token }}
           DEPLOY_TIMEOUT: ${{ inputs.deploy_timeout_seconds }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          # Confirm the token can actually READ deployments. A deploy-scoped
+          # token can trigger the webhook but may get 401 here; in that case we
+          # degrade to the health-endpoint check rather than false-failing a
+          # deploy that may well have succeeded. Provide a read-capable token to
+          # get strict rollback detection.
+          probe=$(curl -sS --max-time 15 -o /tmp/dep.json -w "%{http_code}" \
+            -H "Authorization: Bearer $COOLIFY_TOKEN" \
+            "$BASE_URL/api/v1/deployments/$DEPLOYMENT_UUID" || echo "000")
+          if [ "$probe" = "401" ] || [ "$probe" = "403" ]; then
+            echo "::warning::coolify_token cannot read /api/v1/deployments (HTTP $probe). Skipping deployment-status gate and relying on the health check. Provide a read-capable Coolify API token to enable strict rollback detection."
+            exit 0
+          fi
           start_time=$(date +%s)
           while true; do
             STATUS=$(curl -sS --max-time 15 \
