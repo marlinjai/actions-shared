@@ -13,6 +13,10 @@ on:
         required: false
         type: number
         default: 80
+      deploy_timeout_seconds:
+        required: false
+        type: number
+        default: 360
     secrets:
       coolify_webhook:
         required: true
@@ -33,11 +37,15 @@ jobs:
           initial-status: in_progress
 
       - name: Trigger Coolify deploy webhook
+        id: trigger
+        env:
+          COOLIFY_WEBHOOK: ${{ secrets.coolify_webhook }}
+          COOLIFY_TOKEN: ${{ secrets.coolify_token }}
         run: |
           set -euo pipefail
           HTTP_CODE=$(curl -sS -o /tmp/coolify-response -w "%{http_code}" \
-            "${{ secrets.coolify_webhook }}" \
-            -H "Authorization: Bearer ${{ secrets.coolify_token }}")
+            "$COOLIFY_WEBHOOK" \
+            -H "Authorization: Bearer $COOLIFY_TOKEN")
           echo "Coolify webhook HTTP $HTTP_CODE"
           cat /tmp/coolify-response || true
           echo
@@ -45,6 +53,54 @@ jobs:
             echo "::error::Coolify deploy webhook failed with HTTP $HTTP_CODE"
             exit 1
           fi
+
+          # Derive the Coolify API base from the webhook URL (scheme://host) and
+          # the deployment uuid from the trigger response, so we can poll the
+          # real deployment status instead of trusting the public health URL
+          # (which a rolled-back old container keeps serving).
+          BASE=$(printf '%s' "$COOLIFY_WEBHOOK" | sed -E 's#^(https?://[^/]+).*#\1#')
+          DUUID=$(jq -r '.deployments[0].deployment_uuid // empty' /tmp/coolify-response 2>/dev/null || true)
+          echo "base_url=$BASE" >> "$GITHUB_OUTPUT"
+          echo "deployment_uuid=$DUUID" >> "$GITHUB_OUTPUT"
+          if [ -z "$DUUID" ]; then
+            echo "::warning::Could not parse deployment_uuid from webhook response; deployment-status gate will be skipped and only the health URL will be checked."
+          else
+            echo "Tracking Coolify deployment: $DUUID"
+          fi
+
+      - name: Verify Coolify deployment status
+        if: steps.trigger.outputs.deployment_uuid != ''
+        env:
+          BASE_URL: ${{ steps.trigger.outputs.base_url }}
+          DEPLOYMENT_UUID: ${{ steps.trigger.outputs.deployment_uuid }}
+          COOLIFY_TOKEN: ${{ secrets.coolify_token }}
+          DEPLOY_TIMEOUT: ${{ inputs.deploy_timeout_seconds }}
+        run: |
+          set -euo pipefail
+          start_time=$(date +%s)
+          while true; do
+            STATUS=$(curl -sS --max-time 15 \
+              -H "Authorization: Bearer $COOLIFY_TOKEN" \
+              "$BASE_URL/api/v1/deployments/$DEPLOYMENT_UUID" \
+              | jq -r '.status // "unknown"' 2>/dev/null || echo "unknown")
+            elapsed=$(( $(date +%s) - start_time ))
+            echo "Deployment $DEPLOYMENT_UUID status: $STATUS (${elapsed}s)"
+            case "$STATUS" in
+              finished)
+                echo "::notice::Coolify deployment finished successfully after ${elapsed}s"
+                exit 0
+                ;;
+              failed|error|cancelled-by-force)
+                echo "::error::Coolify deployment ended with status '$STATUS' after ${elapsed}s (likely healthcheck rollback). Check Coolify deployment logs."
+                exit 1
+                ;;
+            esac
+            if [ "$elapsed" -ge "$DEPLOY_TIMEOUT" ]; then
+              echo "::error::Coolify deployment did not reach a terminal status within ${elapsed}s (last status: $STATUS)"
+              exit 1
+            fi
+            sleep 10
+          done
 
       - name: Verify health endpoint
         env:
