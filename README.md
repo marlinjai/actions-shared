@@ -83,7 +83,8 @@ roadmap-check:
 **Local run** (same script, no npm publish involved):
 
 ```sh
-npx --yes github:marlinjai/actions-shared#roadmap-check-v1 roadmap-check --max-age 30
+# the package has a single bin, so npx runs it without naming it:
+npx --yes github:marlinjai/actions-shared#roadmap-check-v1 --root . --max-age 30
 # or, with a checkout of this repo:
 node ~/software-dev/actions-shared/roadmap-check/check-roadmap.mjs --root . --max-age 30
 ```
