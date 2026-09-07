@@ -1,0 +1,19 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  roadmap-check-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm test
+      # Dogfood: run the action against this repo's own roadmap-check fixtures shape.
+      - name: self-check (no roadmap, no live plans, must be a notice)
+        uses: ./roadmap-check

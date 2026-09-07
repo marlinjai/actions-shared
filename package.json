@@ -1,0 +1,21 @@
+{
+  "name": "@actions-shared/roadmap-check",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fails when a repo's root ROADMAP.md and its plan files disagree. Installed from git, never published to npm.",
+  "type": "module",
+  "bin": {
+    "roadmap-check": "./roadmap-check/check-roadmap.mjs"
+  },
+  "files": [
+    "roadmap-check/check-roadmap.mjs"
+  ],
+  "scripts": {
+    "test": "node --test roadmap-check/test/*.test.mjs",
+    "check": "node roadmap-check/check-roadmap.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

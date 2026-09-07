@@ -1,0 +1,49 @@
+name: roadmap-check
+description: >-
+  Fails when a repo's root ROADMAP.md and its plan files disagree: dangling plan
+  links, open lines pointing at finished plans, live plans indexed nowhere,
+  open lines without a last-confirmed date or older than max-age days, drafts
+  parked unlinked past max-age, and plan statuses outside the six lifecycle
+  values. The roadmap is the only index of open work; plans are the only place
+  content lives.
+
+inputs:
+  max-age:
+    description: Days an open roadmap line (or an unlinked draft plan) may go without being re-confirmed before the check fails.
+    required: false
+    default: "30"
+  plans-dir:
+    description: >-
+      Space- or comma-separated plan folders relative to the repo root. Empty
+      means the default set (docs/plans plans docs/superpowers docs/specs
+      docs/research docs/decisions).
+    required: false
+    default: ""
+  roadmap:
+    description: Path of the roadmap file relative to the repo root.
+    required: false
+    default: ROADMAP.md
+  working-directory:
+    description: Repo root to check (for monorepos that keep the roadmap in a subfolder).
+    required: false
+    default: "."
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+    - name: roadmap-check
+      shell: bash
+      env:
+        MAX_AGE: ${{ inputs.max-age }}
+        PLANS_DIR: ${{ inputs.plans-dir }}
+        ROADMAP: ${{ inputs.roadmap }}
+        WORKDIR: ${{ inputs.working-directory }}
+      run: |
+        args=(--root "$WORKDIR" --roadmap "$ROADMAP" --max-age "$MAX_AGE")
+        if [[ -n "$PLANS_DIR" ]]; then
+          args+=(--plans-dir "$PLANS_DIR")
+        fi
+        node "${{ github.action_path }}/check-roadmap.mjs" "${args[@]}"
