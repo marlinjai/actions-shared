@@ -199,3 +199,9 @@ test("usage errors exit 2", () => {
   assert.equal(run(dir, ["--max-age", "soon"]).code, 2);
   assert.equal(run(dir, ["--bogus"]).code, 2);
 });
+
+test("a --root that does not exist is a usage error, never a silent 'not adopted'", () => {
+  const r = run(join(tmpdir(), "roadmap-check-does-not-exist-" + Date.now()));
+  assert.equal(r.code, 2);
+  assert.match(r.out, /does not exist/);
+});

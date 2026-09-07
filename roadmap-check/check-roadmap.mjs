@@ -83,6 +83,9 @@ function parseArgs(argv) {
     else usage(`unknown argument ${a}`);
   }
   if (opts.plansDirs.length === 0) opts.plansDirs = DEFAULT_PLAN_DIRS;
+  if (!existsSync(opts.root) || !statSync(opts.root).isDirectory()) {
+    usage(`--root ${opts.root} does not exist or is not a directory (a missing repo must never read as "not adopted")`);
+  }
   return opts;
 }
 
