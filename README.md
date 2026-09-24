@@ -101,7 +101,7 @@ Decides whether a workflow's heavy jobs (test suites, builds, browsers) have any
 2. **Verified push** (`skip-verified-push: true`, pushes to the default branch only). Heavy is false when the pushed commit came from a merged pull request whose head has the same tree, main before the merge is an ancestor of that head (main did not move underneath the pull request run), and a run of this same workflow for that head on the `pull_request` event succeeded. That run already tested exactly this code against exactly this main. Otherwise the push runs in full, and the reason says why.
 3. Anything else is heavy: `workflow_dispatch`, schedules, other branches.
 
-It **fails open**: an API error prints a warning and reports heavy, because a skipped test that should have run is the one outcome that looks like success. Globs match the whole path from the repo root: `*` stays in one segment, `**` crosses segments, `**/` also matches zero segments.
+A renamed file counts under both its old and new name, so moving code into `docs/` is not a docs-only change. It **fails open**: an API error, a request that takes longer than 15 seconds, or API calls exceeding a 60 second total print a warning and report heavy, because a skipped test that should have run is the one outcome that looks like success. Globs match the whole path from the repo root: `*` stays in one segment, `**` crosses segments, `**/` also matches zero segments.
 
 **Caller pattern.** Put the gate in the job that already runs `roadmap-check`, so it costs no extra job, and gate the heavy jobs on its output:
 

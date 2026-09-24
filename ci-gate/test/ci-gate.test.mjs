@@ -63,6 +63,41 @@ test("only-paths and ignore-paths combine: a package README alone skips", async 
   assert.equal((await decide({ api: code.api, repo: REPO, eventName: "pull_request", event: prEvent, only, ignore: DOCS })).heavy, true);
 });
 
+test("a renamed file counts under both names", async () => {
+  const moved = fakeApi({ [`/repos/${REPO}/pulls/7/files?per_page=100&page=1`]: [{ filename: "docs/a.md", previous_filename: "src/a.ts" }] });
+  assert.equal((await decide({ api: moved.api, repo: REPO, eventName: "pull_request", event: prEvent, ignore: DOCS })).heavy, true);
+  const out = fakeApi({ [`/repos/${REPO}/pulls/7/files?per_page=100&page=1`]: [{ filename: "lib/a.ts", previous_filename: "packages/a.ts" }] });
+  assert.equal((await decide({ api: out.api, repo: REPO, eventName: "pull_request", event: prEvent, only: "packages/**" })).heavy, true);
+  const routes = pushRoutes();
+  routes[`/repos/${REPO}/compare/P...S`] = { files: [{ filename: "docs/b.md", previous_filename: "src/b.ts" }] };
+  const push = fakeApi(routes);
+  const r = await decide(pushArgs(push.api));
+  assert.match(r.reason, /already passed/); // not skipped as docs-only; went on to verification
+});
+
+test("a request that hangs times out instead of holding the gate", async () => {
+  // A real request holds a socket open, which keeps the process alive; the
+  // ref'd timer stands in for it (AbortSignal.timeout alone does not).
+  const hang = (url, { signal }) =>
+    new Promise((_, reject) => {
+      const socket = setTimeout(() => {}, 10_000);
+      signal.addEventListener("abort", () => { clearTimeout(socket); reject(signal.reason); });
+    });
+  const api = makeApi({ token: "t", fetchImpl: hang, requestTimeoutMs: 50 });
+  await assert.rejects(api.call("/repos/o/r"), /GET \/repos\/o\/r timed out/);
+});
+
+test("the total budget stops further calls", async () => {
+  const slow = (url, { signal }) =>
+    new Promise((resolve, reject) => {
+      const t = setTimeout(() => resolve({ ok: true, status: 200, json: async () => ({}) }), 40);
+      signal.addEventListener("abort", () => { clearTimeout(t); reject(signal.reason); });
+    });
+  const api = makeApi({ token: "t", fetchImpl: slow, requestTimeoutMs: 1000, totalBudgetMs: 60 });
+  await api.call("/a");
+  await assert.rejects(async () => { await api.call("/b"); await api.call("/c"); }, /timed out|budget/);
+});
+
 test("an empty or unreadable change list runs in full", async () => {
   const empty = fakeApi(prFiles([]));
   assert.equal((await decide({ api: empty.api, repo: REPO, eventName: "pull_request", event: prEvent, ignore: DOCS })).heavy, true);

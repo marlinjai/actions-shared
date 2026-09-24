@@ -69,17 +69,40 @@ export function parseGlobs(text) {
 export const matchesAny = (file, regexps) => regexps.some((r) => r.test(file));
 
 // ---------------------------------------------------------------- GitHub API
-export function makeApi({ token, apiUrl = "https://api.github.com", fetchImpl = fetch }) {
+// Every request gets its own timeout, and the whole decision a total budget:
+// Node's fetch otherwise waits up to 300 s for headers and again between body
+// chunks, and a gate that hangs holds up every job behind it. Past either
+// limit the call throws, which the entry point turns into a full run.
+export const REQUEST_TIMEOUT_MS = 15_000;
+export const TOTAL_BUDGET_MS = 60_000;
+
+export function makeApi({
+  token,
+  apiUrl = "https://api.github.com",
+  fetchImpl = fetch,
+  requestTimeoutMs = REQUEST_TIMEOUT_MS,
+  totalBudgetMs = TOTAL_BUDGET_MS,
+}) {
+  const deadline = Date.now() + totalBudgetMs;
   const call = async (path) => {
-    const res = await fetchImpl(`${apiUrl}${path}`, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    });
-    if (!res.ok) throw new Error(`GET ${path} answered HTTP ${res.status}`);
-    return res.json();
+    const left = deadline - Date.now();
+    if (left <= 0) throw new Error(`the ${totalBudgetMs} ms budget for API calls ran out before GET ${path}`);
+    const signal = AbortSignal.timeout(Math.min(requestTimeoutMs, left));
+    try {
+      const res = await fetchImpl(`${apiUrl}${path}`, {
+        signal,
+        headers: {
+          Accept: "application/vnd.github+json",
+          Authorization: `Bearer ${token}`,
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      });
+      if (!res.ok) throw new Error(`GET ${path} answered HTTP ${res.status}`);
+      return await res.json();
+    } catch (e) {
+      if (signal.aborted) throw new Error(`GET ${path} timed out`);
+      throw e;
+    }
   };
   return {
     call,
@@ -89,13 +112,18 @@ export function makeApi({ token, apiUrl = "https://api.github.com", fetchImpl = 
       const files = [];
       for (let page = 1; page <= 30; page++) {
         const batch = await call(`/repos/${repo}/pulls/${number}/files?per_page=100&page=${page}`);
-        files.push(...batch.map((f) => f.filename));
+        files.push(...batch.flatMap(paths));
         if (batch.length < 100) return { files, complete: true };
       }
       return { files, complete: false };
     },
   };
 }
+
+// A renamed file counts under both names: moving src/a.ts to docs/a.md removes
+// code from the build, so it must not read as a docs-only change, and moving a
+// file out of an only-paths folder must still count as touching it.
+const paths = (f) => (f.previous_filename ? [f.filename, f.previous_filename] : [f.filename]);
 
 // ---------------------------------------------------------------- decision
 const NO_COMMIT = /^0+$/;
@@ -110,7 +138,7 @@ async function changedFiles({ api, repo, event, eventName }) {
     const cmp = await api.call(`/repos/${repo}/compare/${event.before}...${event.after}`);
     // compare lists at most 300 files; a longer list is incomplete.
     if (!Array.isArray(cmp.files) || cmp.files.length >= 300) return null;
-    return cmp.files.map((f) => f.filename);
+    return cmp.files.flatMap(paths);
   }
   return null;
 }
