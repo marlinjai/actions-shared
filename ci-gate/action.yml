@@ -1,0 +1,59 @@
+name: ci-gate
+description: >-
+  Decides whether a workflow's heavy jobs have anything to prove on this run.
+  Outputs heavy=false for a pull request whose changed files all match
+  ignore-paths (a docs-only change), for a change with no file matching
+  only-paths, and (with skip-verified-push) for a push to the default branch
+  whose exact tree already passed this workflow on its pull request with main
+  unchanged underneath. Anything it cannot decide runs in full.
+
+inputs:
+  ignore-paths:
+    description: >-
+      Newline- or comma-separated globs. When every changed file matches one,
+      heavy is false. Globs match the whole path; use `**/*.md` for any depth.
+    required: false
+    default: ""
+  only-paths:
+    description: >-
+      Newline- or comma-separated globs. When set, heavy is true only if a
+      changed file matches one. Takes precedence over ignore-paths.
+    required: false
+    default: ""
+  skip-verified-push:
+    description: Skip a push to the default branch whose tree already passed this workflow on its pull request.
+    required: false
+    default: "false"
+  name:
+    description: Label for the step summary line, when a job runs the gate more than once.
+    required: false
+    default: ""
+  token:
+    description: >-
+      Token for the GitHub API. The calling job needs `contents: read`,
+      `pull-requests: read` and `actions: read`.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  heavy:
+    description: "'true' when the heavy jobs should run, 'false' when they have nothing to prove."
+    value: ${{ steps.gate.outputs.heavy }}
+  reason:
+    description: One line saying why.
+    value: ${{ steps.gate.outputs.reason }}
+
+runs:
+  using: composite
+  steps:
+    - name: ci-gate
+      id: gate
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        IGNORE_PATHS: ${{ inputs.ignore-paths }}
+        ONLY_PATHS: ${{ inputs.only-paths }}
+        SKIP_VERIFIED_PUSH: ${{ inputs.skip-verified-push }}
+        GATE_NAME: ${{ inputs.name }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      run: node "${{ github.action_path }}/ci-gate.mjs"

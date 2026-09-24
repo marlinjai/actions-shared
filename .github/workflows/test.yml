@@ -8,6 +8,10 @@ on:
 jobs:
   roadmap-check-tests:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,3 +21,11 @@ jobs:
       # Dogfood: run the action against this repo's own roadmap-check fixtures shape.
       - name: self-check (no roadmap, no live plans, must be a notice)
         uses: ./roadmap-check
+      # Dogfood: the gate must decide on this repository's own events without erroring.
+      - name: self-check (ci-gate decides, never fails the job)
+        id: gate
+        uses: ./ci-gate
+        with:
+          ignore-paths: "**/*.md"
+          skip-verified-push: true
+      - run: echo "ci-gate said heavy=${{ steps.gate.outputs.heavy }} (${{ steps.gate.outputs.reason }})"

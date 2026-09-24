@@ -2,16 +2,17 @@
   "name": "@actions-shared/roadmap-check",
   "version": "1.0.0",
   "private": true,
-  "description": "Fails when a repo's root ROADMAP.md and its plan files disagree. Installed from git, never published to npm.",
+  "description": "Shared GitHub Actions for marlinjai repositories: roadmap-check (ROADMAP.md and plan files agree) and ci-gate (skip heavy jobs that have nothing to prove). Installed from git, never published to npm.",
   "type": "module",
   "bin": {
     "roadmap-check": "./roadmap-check/check-roadmap.mjs"
   },
   "files": [
-    "roadmap-check/check-roadmap.mjs"
+    "roadmap-check/check-roadmap.mjs",
+    "ci-gate/ci-gate.mjs"
   ],
   "scripts": {
-    "test": "node --test roadmap-check/test/*.test.mjs",
+    "test": "node --test roadmap-check/test/*.test.mjs ci-gate/test/*.test.mjs",
     "check": "node roadmap-check/check-roadmap.mjs"
   },
   "engines": {
