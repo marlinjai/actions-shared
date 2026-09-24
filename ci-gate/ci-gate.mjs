@@ -8,9 +8,11 @@
  *
  * Rules, in order:
  *   1. Path filter (pull_request: the pull request's files; push: the pushed
- *      range). With `only`, heavy is true when any changed file matches one of
+ *      range). With `only`, heavy is false when no changed file matches one of
  *      its globs. With `ignore`, heavy is false when every changed file matches
- *      one of its globs (a docs-only change). An empty change list is heavy.
+ *      one of its globs (a docs-only change). Both may be given: then a change
+ *      must hit `only` and must not be all `ignore`. An empty change list is
+ *      heavy.
  *   2. Verified push (push to the default branch, `skip-verified-push`): heavy
  *      is false when the pushed commit came from a merged pull request whose
  *      head has the same tree, the pre-merge main is an ancestor of that head
@@ -150,7 +152,7 @@ export async function decide({ api, repo, eventName, event, runId, defaultBranch
       if (onlyRe.length && !files.some((f) => matchesAny(f, onlyRe))) {
         return { heavy: false, reason: `none of ${files.length} changed files match the only-paths filter` };
       }
-      if (!onlyRe.length && files.every((f) => matchesAny(f, ignoreRe))) {
+      if (ignoreRe.length && files.every((f) => matchesAny(f, ignoreRe))) {
         return { heavy: false, reason: `all ${files.length} changed files match the ignore-paths filter` };
       }
     }

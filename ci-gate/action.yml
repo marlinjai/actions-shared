@@ -16,8 +16,9 @@ inputs:
     default: ""
   only-paths:
     description: >-
-      Newline- or comma-separated globs. When set, heavy is true only if a
-      changed file matches one. Takes precedence over ignore-paths.
+      Newline- or comma-separated globs. When set, heavy is false unless a
+      changed file matches one. Combines with ignore-paths: a change must hit
+      only-paths and must not consist entirely of ignore-paths files.
     required: false
     default: ""
   skip-verified-push:

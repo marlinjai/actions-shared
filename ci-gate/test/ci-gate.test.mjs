@@ -55,6 +55,14 @@ test("only-paths: runs when a file matches, skips when none does", async () => {
   assert.equal((await decide({ api: miss.api, repo: REPO, eventName: "pull_request", event: prEvent, only })).heavy, false);
 });
 
+test("only-paths and ignore-paths combine: a package README alone skips", async () => {
+  const only = "packages/**";
+  const readme = fakeApi(prFiles(["packages/core/README.md"]));
+  assert.equal((await decide({ api: readme.api, repo: REPO, eventName: "pull_request", event: prEvent, only, ignore: DOCS })).heavy, false);
+  const code = fakeApi(prFiles(["packages/core/README.md", "packages/core/src/a.ts"]));
+  assert.equal((await decide({ api: code.api, repo: REPO, eventName: "pull_request", event: prEvent, only, ignore: DOCS })).heavy, true);
+});
+
 test("an empty or unreadable change list runs in full", async () => {
   const empty = fakeApi(prFiles([]));
   assert.equal((await decide({ api: empty.api, repo: REPO, eventName: "pull_request", event: prEvent, ignore: DOCS })).heavy, true);

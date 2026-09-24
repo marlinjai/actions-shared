@@ -97,7 +97,7 @@ Decides whether a workflow's heavy jobs (test suites, builds, browsers) have any
 
 **Rules**, in order:
 
-1. **Path filter.** On a pull request the changed files are the pull request's; on a push they are the pushed range. With `only-paths`, heavy is true when any changed file matches. With `ignore-paths`, heavy is false when every changed file matches (a docs-only change). An empty or unreadable change list is heavy.
+1. **Path filter.** On a pull request the changed files are the pull request's; on a push they are the pushed range. With `only-paths`, heavy is false unless a changed file matches. With `ignore-paths`, heavy is false when every changed file matches (a docs-only change). Given together, a change must hit `only-paths` and must not consist entirely of `ignore-paths` files. An empty or unreadable change list is heavy.
 2. **Verified push** (`skip-verified-push: true`, pushes to the default branch only). Heavy is false when the pushed commit came from a merged pull request whose head has the same tree, main before the merge is an ancestor of that head (main did not move underneath the pull request run), and a run of this same workflow for that head on the `pull_request` event succeeded. That run already tested exactly this code against exactly this main. Otherwise the push runs in full, and the reason says why.
 3. Anything else is heavy: `workflow_dispatch`, schedules, other branches.
 
@@ -140,7 +140,7 @@ A skipped job reports as skipped, which GitHub counts as passing for a required 
 | Input | Required | Default | Notes |
 |-------|----------|---------|-------|
 | `ignore-paths` | no | none | Globs, newline or comma separated. All changed files match: skip. |
-| `only-paths` | no | none | Globs. No changed file matches: skip. Takes precedence over `ignore-paths`. |
+| `only-paths` | no | none | Globs. No changed file matches: skip. Combines with `ignore-paths`. |
 | `skip-verified-push` | no | `false` | Rule 2. |
 | `name` | no | none | Label in the step summary when a job runs the gate more than once. |
 | `token` | no | `github.token` | Needs `contents: read`, `pull-requests: read`, `actions: read`. |
