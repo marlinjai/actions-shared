@@ -8,7 +8,7 @@ This repository exists because GitHub does not allow cross-repo reusable workflo
 
 ### `coolify-deploy-verify.yml`
 
-Brackets a Coolify deploy webhook with GitHub Deployments API status transitions and a retry-curl smoke test against the public health URL. Closes silent-failure deploys (green CI, green Coolify, stale site). It first waits for Coolify to report the triggered deployment as `finished` (up to `deploy_timeout_seconds`), failing at once on `failed`/`error`/`cancelled-by-force`, then retries the public health URL for up to `max_wait_seconds`.
+Brackets a Coolify deploy webhook with GitHub Deployments API status transitions and a retry-curl smoke test against the public health URL. Closes silent-failure deploys (green CI, green Coolify, stale site). When the webhook response includes a `deployment_uuid` and the Coolify token can read deployments, it waits for Coolify to report the triggered deployment as `finished` (up to `deploy_timeout_seconds`) and fails at once on `failed`/`error`/`cancelled-by-force`. If the response lacks a `deployment_uuid` or the lookup returns HTTP 401/403, it skips that status gate (with a warning) and only the health URL is checked, so a stale healthy container can pass. Either way it then retries the public health URL for up to `max_wait_seconds`.
 
 **Caller pattern:**
 
@@ -32,8 +32,8 @@ deploy-verify:
 |-------|----------|---------|-------|
 | `health_url` | yes | none | No fallback to `/`. Forces the caller to specify a real health endpoint. |
 | `environment` | yes | none | GitHub Deployments environment. Use `production-<service>` in multi-service repos so Vercel and Coolify histories don't mix. |
-| `max_wait_seconds` | no | 80 | Health retry window, starts only after Coolify reports the deployment finished. Bump per-app if cold starts exceed budget. |
-| `deploy_timeout_seconds` | no | 900 | How long to wait for Coolify to take the deployment from queued to finished. Raised from 360 on 2026-10-23: lone deploys take 35s to 2.5min, but deploys dispatched together share one server and took 7 to 9 minutes, so four green deploys were reported red. Coolify's own `failed` status still fails the job immediately. |
+| `max_wait_seconds` | no | 80 | Health retry window, starts after Coolify reports the deployment finished, or immediately when the status gate is skipped. Bump per-app if cold starts exceed budget. |
+| `deploy_timeout_seconds` | no | 900 | How long to wait for Coolify to take the deployment from queued to finished. Raised from 360 on 2026-10-23: lone deploys take 35s to 2.5min, but deploys dispatched together share one server and took 7 to 9 minutes, so four green deploys were reported red. When the status gate runs, Coolify's own `failed` status still fails the job immediately; when it is skipped (no `deployment_uuid`, or a token that cannot read deployments) this input has no effect. |
 
 **Secrets:**
 
