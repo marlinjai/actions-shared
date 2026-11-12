@@ -48,14 +48,16 @@ jobs:
           COOLIFY_TOKEN: ${{ secrets.coolify_token }}
         run: |
           set -euo pipefail
-          HTTP_CODE=$(curl -sS -o /tmp/coolify-response -w "%{http_code}" \
+          # Coolify answers a GET with 405 "This endpoint has changed to a POST
+          # request."; the deploy webhook only deploys on POST.
+          HTTP_CODE=$(curl -sS -X POST -o /tmp/coolify-response -w "%{http_code}" \
             "$COOLIFY_WEBHOOK" \
             -H "Authorization: Bearer $COOLIFY_TOKEN")
           echo "Coolify webhook HTTP $HTTP_CODE"
           cat /tmp/coolify-response || true
           echo
           if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
-            echo "::error::Coolify deploy webhook failed with HTTP $HTTP_CODE"
+            echo "::error::Coolify deploy webhook failed with HTTP $HTTP_CODE: $(jq -r '.message // empty' /tmp/coolify-response 2>/dev/null | head -c 200)"
             exit 1
           fi
 

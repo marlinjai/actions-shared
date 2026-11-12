@@ -12,7 +12,7 @@
     "ci-gate/ci-gate.mjs"
   ],
   "scripts": {
-    "test": "node --test roadmap-check/test/*.test.mjs ci-gate/test/*.test.mjs",
+    "test": "node --test roadmap-check/test/*.test.mjs ci-gate/test/*.test.mjs deploy-verify-test/*.test.mjs",
     "check": "node roadmap-check/check-roadmap.mjs"
   },
   "engines": {

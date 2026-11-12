@@ -8,7 +8,7 @@ This repository exists because GitHub does not allow cross-repo reusable workflo
 
 ### `coolify-deploy-verify.yml`
 
-Brackets a Coolify deploy webhook with GitHub Deployments API status transitions and a retry-curl smoke test against the public health URL. Closes silent-failure deploys (green CI, green Coolify, stale site). When the webhook response includes a `deployment_uuid` and the Coolify token can read deployments, it waits for Coolify to report the triggered deployment as `finished` (up to `deploy_timeout_seconds`) and fails at once on `failed`/`error`/`cancelled-by-force`. If the response lacks a `deployment_uuid` or the lookup returns HTTP 401/403, it skips that status gate (with a warning) and only the health URL is checked, so a stale healthy container can pass. Either way it then retries the public health URL for up to `max_wait_seconds`.
+Brackets a Coolify deploy webhook (called with `POST`, which Coolify now requires: a `GET` answers `405 This endpoint has changed to a POST request.`) with GitHub Deployments API status transitions and a retry-curl smoke test against the public health URL. Closes silent-failure deploys (green CI, green Coolify, stale site). When the webhook response includes a `deployment_uuid` and the Coolify token can read deployments, it waits for Coolify to report the triggered deployment as `finished` (up to `deploy_timeout_seconds`) and fails at once on `failed`/`error`/`cancelled-by-force`. If the response lacks a `deployment_uuid` or the lookup returns HTTP 401/403, it skips that status gate (with a warning) and only the health URL is checked, so a stale healthy container can pass. Either way it then retries the public health URL for up to `max_wait_seconds`.
 
 **Caller pattern:**
 
@@ -155,7 +155,7 @@ Tests: `npm test` (node:test with a fake GitHub API, one case per rule and per w
 
 Callers always pin to a version tag (`@v1`, `@v2`). Never `@main`. Breaking changes ship as new tags; current callers stay on the old tag until they migrate.
 
-- `v1` (the deploy-verify workflow) is additive-only. `v1.2.0` raises the `deploy_timeout_seconds` default from 360 to 900 and `v1` moves forward to it.
+- `v1` (the deploy-verify workflow) is additive-only. `v1.2.0` raises the `deploy_timeout_seconds` default from 360 to 900 and `v1` moves forward to it. `v1.2.1` sends the webhook as `POST` (Coolify 4.7.5 refuses `GET` with HTTP 405) and reports Coolify's error message in the failure annotation.
 - `ci-gate-v1` is the tag for the ci-gate action, same rules as roadmap-check: additive fixes move it forward, a change to its rules or inputs gets `ci-gate-v2`.
 - `roadmap-check-v1` is the tag for the roadmap-check action. It moves forward with additive fixes; a breaking change to its rules or inputs gets `roadmap-check-v2`. The two tag families move independently, so a check fix never touches deploy-verify consumers.
 - A breaking change (renaming inputs, removing inputs, restructuring the lifecycle) gets a new major tag and a per-caller migration.
