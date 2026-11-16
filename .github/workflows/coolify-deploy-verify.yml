@@ -34,9 +34,16 @@ jobs:
     steps:
       - name: Create GitHub Deployment
         id: deployment
-        uses: chrnorm/deployment-action@v2.0.8
+        # Pinned by commit, not tag: this job holds the Coolify secrets, and a
+        # moved tag would run someone else's code with them. v2.0.8 and v2.0.4.
+        uses: chrnorm/deployment-action@500aa6a23c81ffa1acf71072aee3cfa2cc2e556a
         with:
           token: ${{ github.token }}
+          # Record the commit this run is for. The default (the branch ref)
+          # resolves to whatever the branch points at when the record is made,
+          # so two merges close together could record the newer commit as
+          # deployed while the older one was built.
+          ref: ${{ github.sha }}
           environment: ${{ inputs.environment }}
           environment-url: ${{ inputs.health_url }}
           initial-status: in_progress
@@ -147,7 +154,7 @@ jobs:
 
       - name: Mark Deployment success
         if: success()
-        uses: chrnorm/deployment-status@v2.0.4
+        uses: chrnorm/deployment-status@6df8d036fd2fee9eb82936733953da1f8382b41e # v2.0.4
         with:
           token: ${{ github.token }}
           deployment-id: ${{ steps.deployment.outputs.deployment_id }}
@@ -157,7 +164,7 @@ jobs:
 
       - name: Mark Deployment failure
         if: failure()
-        uses: chrnorm/deployment-status@v2.0.4
+        uses: chrnorm/deployment-status@6df8d036fd2fee9eb82936733953da1f8382b41e # v2.0.4
         with:
           token: ${{ github.token }}
           deployment-id: ${{ steps.deployment.outputs.deployment_id }}
