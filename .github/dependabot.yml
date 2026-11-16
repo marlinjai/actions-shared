@@ -1,0 +1,8 @@
+# The deploy-verify workflow pins third-party actions by commit. Without this,
+# those pins would never get update pull requests and would silently go stale.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

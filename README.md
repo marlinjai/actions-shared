@@ -155,7 +155,7 @@ Tests: `npm test` (node:test with a fake GitHub API, one case per rule and per w
 
 Callers always pin to a version tag (`@v1`, `@v2`). Never `@main`. Breaking changes ship as new tags; current callers stay on the old tag until they migrate.
 
-- `v1` (the deploy-verify workflow) is additive-only. `v1.2.0` raises the `deploy_timeout_seconds` default from 360 to 900 and `v1` moves forward to it. `v1.2.1` sends the webhook as `POST` (Coolify 4.7.5 refuses `GET` with HTTP 405) and reports Coolify's error message in the failure annotation.
+- `v1` (the deploy-verify workflow) is additive-only. `v1.2.0` raises the `deploy_timeout_seconds` default from 360 to 900 and `v1` moves forward to it. `v1.2.1` sends the webhook as `POST` (Coolify 4.7.5 refuses `GET` with HTTP 405) and reports Coolify's error message in the failure annotation. `v1.2.2` pins the two Deployments actions by commit and records each Deployment against the commit the run is for (`github.sha`), not the branch tip at the time.
 - `ci-gate-v1` is the tag for the ci-gate action, same rules as roadmap-check: additive fixes move it forward, a change to its rules or inputs gets `ci-gate-v2`.
 - `roadmap-check-v1` is the tag for the roadmap-check action. It moves forward with additive fixes; a breaking change to its rules or inputs gets `roadmap-check-v2`. The two tag families move independently, so a check fix never touches deploy-verify consumers.
 - A breaking change (renaming inputs, removing inputs, restructuring the lifecycle) gets a new major tag and a per-caller migration.

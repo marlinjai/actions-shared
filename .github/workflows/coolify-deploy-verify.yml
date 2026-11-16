@@ -34,9 +34,22 @@ jobs:
     steps:
       - name: Create GitHub Deployment
         id: deployment
-        uses: chrnorm/deployment-action@v2.0.8
+        # Pinned by commit, not tag: this job holds the Coolify secrets, and a
+        # moved tag would run someone else's code with them. Dependabot
+        # (.github/dependabot.yml) proposes updates to the pins.
+        uses: chrnorm/deployment-action@500aa6a23c81ffa1acf71072aee3cfa2cc2e556a # v2.0.8
         with:
           token: ${{ github.token }}
+          # Record the commit this run is for. The default (the branch ref)
+          # resolves to whatever the branch points at when the record is made,
+          # so two merges close together could record the newer commit as
+          # deployed while the older one was built. Callers trigger on push or
+          # workflow_dispatch, where github.sha is the commit built. Under
+          # workflow_run it would be the branch tip when the event fired, and
+          # under pull_request the synthetic merge commit; re-running only this
+          # job of an old run records that run's commit while Coolify pulls the
+          # current :latest, so re-run the whole workflow instead.
+          ref: ${{ github.sha }}
           environment: ${{ inputs.environment }}
           environment-url: ${{ inputs.health_url }}
           initial-status: in_progress
@@ -147,7 +160,7 @@ jobs:
 
       - name: Mark Deployment success
         if: success()
-        uses: chrnorm/deployment-status@v2.0.4
+        uses: chrnorm/deployment-status@6df8d036fd2fee9eb82936733953da1f8382b41e # v2.0.4
         with:
           token: ${{ github.token }}
           deployment-id: ${{ steps.deployment.outputs.deployment_id }}
@@ -157,7 +170,7 @@ jobs:
 
       - name: Mark Deployment failure
         if: failure()
-        uses: chrnorm/deployment-status@v2.0.4
+        uses: chrnorm/deployment-status@6df8d036fd2fee9eb82936733953da1f8382b41e # v2.0.4
         with:
           token: ${{ github.token }}
           deployment-id: ${{ steps.deployment.outputs.deployment_id }}
